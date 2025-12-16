@@ -20,7 +20,6 @@ from part4_admin_and_review import save_result_files
 # ======================================================
 QUESTION_TIME_LIMIT = 20
 APPROVAL_FILE = "approvals.csv"
-
 APP_BASE_URL = "https://lotus-exam.streamlit.app"
 
 SMTP_SERVER = "smtp.gmail.com"
@@ -74,7 +73,7 @@ def get_request_status(request_id):
 
 
 # ======================================================
-# EMAIL (HTML APPROVE / REJECT)
+# EMAIL (HTML)
 # ======================================================
 def send_approval_email(request_id, user_info):
     approve_link = f"{APP_BASE_URL}?approve={request_id}"
@@ -107,7 +106,7 @@ def send_approval_email(request_id, user_info):
            ❌ Reject
         </a>
         <br><br>
-        <small>This decision page is admin-only.</small>
+        <small>This page is for admin decision only.</small>
     </body>
     </html>
     """, subtype="html")
@@ -119,7 +118,7 @@ def send_approval_email(request_id, user_info):
 
 
 # ======================================================
-# ADMIN APPROVAL PAGE (BLOCK EXAM)
+# ADMIN APPROVAL PAGE (BLOCK EVERYTHING)
 # ======================================================
 def handle_admin_action():
     params = st.query_params
@@ -139,8 +138,8 @@ def handle_admin_action():
             reject_request(reject_id)
             st.error("❌ Exam request rejected.")
 
-        st.info("You can safely close this page now.")
-        st.stop()   # ⛔ STOP ANY EXAM FLOW
+        st.info("You can close this page now.")
+        st.stop()
 
 
 # ======================================================
@@ -185,8 +184,9 @@ def show_candidate_form():
             st.session_state.user_info = user_info
             st.session_state.request_id = request_id
             st.session_state.waiting_approval = True
+            st.session_state.page = "exam"
 
-            st.success("⏳ Request sent. Waiting for admin approval...")
+            st.success("⏳ Request sent. Waiting for approval...")
             st.rerun()
 
 
@@ -216,8 +216,6 @@ def show_waiting_for_approval():
         st.session_state.start_time = datetime.now()
         st.session_state.question_start_time = datetime.now()
         st.session_state.waiting_approval = False
-        st.session_state.page = "exam"
-
         st.rerun()
 
     if status == "rejected":
@@ -232,7 +230,7 @@ def show_waiting_for_approval():
 # ======================================================
 def show_exam():
 
-    handle_admin_action()  # ⬅️ IMPORTANT
+    handle_admin_action()
 
     if st.session_state.get("waiting_approval"):
         show_waiting_for_approval()
@@ -247,23 +245,69 @@ def show_exam():
     st.markdown(f"### ⏱ Time left: {max(0, remaining)} sec")
     st.markdown(q["question"])
 
-    choice = st.radio(
-        "Select answer",
-        q["options"],
-        index=0,
-        key=f"q_{idx}"
-    )
-
+    choice = st.radio("Select answer", q["options"], key=f"q_{idx}")
     st.session_state.answers[idx] = q["options"].index(choice)
 
     if st.button("Next"):
         st.session_state.current_q += 1
         st.session_state.question_start_time = datetime.now()
-        st.rerun()
+        if st.session_state.current_q >= len(st.session_state.questions):
+            finish_exam()
+        else:
+            st.rerun()
 
 
 # ======================================================
 # FINISH EXAM
 # ======================================================
 def finish_exam():
-    st.success("Exam Finished")
+
+    questions = st.session_state.questions
+    answers = st.session_state.answers
+
+    correct = 0
+    for i, q in enumerate(questions):
+        if chr(97 + answers[i]) == q["answer"][0]:
+            correct += 1
+
+    total = len(questions)
+    score = round((correct / total) * 100, 2)
+    time_taken = str(datetime.now() - st.session_state.start_time)
+
+    save_result_files(
+        user_info=st.session_state.user_info,
+        score=score,
+        correct=correct,
+        total=total,
+        time_taken=time_taken,
+        questions=questions,
+        answers=answers,
+    )
+
+    st.session_state.result_row_dict = {
+        "score": score,
+        "correct": correct,
+        "total": total,
+        "time_taken": time_taken,
+    }
+
+    st.session_state.exam_finished = True
+    st.rerun()
+
+
+# ======================================================
+# RESULT SCREEN (REQUIRED BY app.py)
+# ======================================================
+def show_exam_result():
+
+    r = st.session_state.result_row_dict
+
+    st.success("✅ Exam Completed")
+    st.metric("Score %", r["score"])
+    st.metric("Correct", f"{r['correct']} / {r['total']}")
+    st.metric("Time Taken", r["time_taken"])
+
+    if st.button("🏠 Back to Home"):
+        for k in list(st.session_state.keys()):
+            del st.session_state[k]
+        st.rerun()
