@@ -88,6 +88,9 @@ def show_candidate_form():
 # -------------------------------------------------------
 def show_exam():
 
+    # 🔁 Auto refresh every second (مهم جدًا)
+    st.autorefresh(interval=1000, key="question_timer")
+
     questions = st.session_state.questions
     answers = st.session_state.answers
     q_index = st.session_state.current_q
@@ -187,7 +190,7 @@ def finish_exam():
     total = len(questions)
     score = round((correct / total) * 100, 2)
 
-    # ⏱️ إجمالي وقت الامتحان (هيطلع في الإكسيل)
+    # ⏱️ إجمالي وقت الامتحان (بيطلع في Excel)
     time_taken = str(datetime.now() - st.session_state.start_time)
 
     user_info = st.session_state.user_info
