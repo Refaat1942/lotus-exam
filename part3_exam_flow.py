@@ -1,5 +1,6 @@
 from datetime import datetime
 import streamlit as st
+import streamlit.components.v1 as components
 
 from part1_config_and_helpers import load_questions_from_gsheet, QUESTIONS_SHEET_URL
 from part2_question_selection_and_validation import (
@@ -71,12 +72,8 @@ def show_candidate_form():
             st.session_state.questions = selected
             st.session_state.answers = [None] * len(selected)
             st.session_state.current_q = 0
-            st.session_state.exam_finished = False
-            st.session_state.review_mode = False
 
-            # ⏱️ إجمالي وقت الامتحان
             st.session_state.start_time = datetime.now()
-            # ⏱️ وقت السؤال الحالي
             st.session_state.question_start_time = datetime.now()
 
             st.session_state.page = "exam"
@@ -88,21 +85,28 @@ def show_candidate_form():
 # -------------------------------------------------------
 def show_exam():
 
-    # 🔁 Auto refresh every second (مهم جدًا)
-    st.autorefresh(interval=1000, key="question_timer")
+    # 🔁 JavaScript auto refresh every second (الحل الحقيقي)
+    components.html(
+        """
+        <script>
+        setTimeout(function() {
+            window.location.reload();
+        }, 1000);
+        </script>
+        """,
+        height=0,
+    )
 
     questions = st.session_state.questions
     answers = st.session_state.answers
     q_index = st.session_state.current_q
     q = questions[q_index]
 
-    # ================== QUESTION TIMER ==================
     now = datetime.now()
     elapsed = (now - st.session_state.question_start_time).seconds
     remaining = QUESTION_TIME_LIMIT - elapsed
 
     if remaining <= 0:
-        # وقت السؤال خلص
         if q_index < len(questions) - 1:
             st.session_state.current_q += 1
             st.session_state.question_start_time = datetime.now()
@@ -129,7 +133,6 @@ def show_exam():
         """,
         unsafe_allow_html=True
     )
-    # ===================================================
 
     st.markdown(f"### Question {q_index + 1} of {len(questions)}")
     st.markdown(f"**{q['question']}**")
@@ -147,14 +150,7 @@ def show_exam():
 
     answers[q_index] = q["options"].index(selected_option)
 
-    # ---------- NAVIGATION ----------
     col1, col2, col3 = st.columns(3)
-
-    with col1:
-        if st.button("⬅ Back", disabled=q_index == 0):
-            st.session_state.current_q -= 1
-            st.session_state.question_start_time = datetime.now()
-            st.rerun()
 
     with col2:
         if q_index < len(questions) - 1:
@@ -166,10 +162,7 @@ def show_exam():
     with col3:
         if q_index == len(questions) - 1:
             if st.button("Submit ✅"):
-                if None in answers:
-                    st.warning("⚠ Please answer all questions.")
-                else:
-                    finish_exam()
+                finish_exam()
 
 
 # -------------------------------------------------------
@@ -182,21 +175,15 @@ def finish_exam():
 
     correct = 0
     for i, q in enumerate(questions):
-        correct_letter = q["answer"][0]
-        user_letter = chr(97 + answers[i])
-        if user_letter == correct_letter:
+        if chr(97 + answers[i]) == q["answer"][0]:
             correct += 1
 
     total = len(questions)
     score = round((correct / total) * 100, 2)
-
-    # ⏱️ إجمالي وقت الامتحان (بيطلع في Excel)
     time_taken = str(datetime.now() - st.session_state.start_time)
 
-    user_info = st.session_state.user_info
-
     save_result_files(
-        user_info=user_info,
+        user_info=st.session_state.user_info,
         score=score,
         correct=correct,
         total=total,
@@ -205,17 +192,4 @@ def finish_exam():
         answers=answers,
     )
 
-    st.session_state.result_row = {
-        "Name": user_info["name"],
-        "Phone": user_info["phone"],
-        "University": user_info["uni"],
-        "Exam Type": user_info["exam_type"],
-        "Score": score,
-        "Correct": correct,
-        "Total": total,
-        "Time Taken": time_taken,
-        "Exam Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    }
-
-    st.session_state.exam_finished = True
-    st.rerun()
+    st.success("✅ Exam Submitted")
