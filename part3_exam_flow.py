@@ -1,6 +1,5 @@
 from datetime import datetime
 import streamlit as st
-import streamlit.components.v1 as components
 
 from part1_config_and_helpers import load_questions_from_gsheet, QUESTIONS_SHEET_URL
 from part2_question_selection_and_validation import (
@@ -8,6 +7,12 @@ from part2_question_selection_and_validation import (
     select_questions_for_exam,
 )
 from part4_admin_and_review import save_result_files
+
+
+# ======================================================
+# CONFIG
+# ======================================================
+QUESTION_TIME_LIMIT = 20  # seconds per question
 
 
 # ----------------------------------------
@@ -37,7 +42,7 @@ def show_candidate_form():
         year = st.text_input("Graduation Year (سنة التخرج)")
         uni = st.text_input("University (الجامعة)")
 
-        exam_type = st.selectbox("Exam Type", list(SHEET_MAP.keys()), key="exam_type_form")
+        exam_type = st.selectbox("Exam Type", list(SHEET_MAP.keys()))
 
         submitted = st.form_submit_button("Start Exam ✅")
 
@@ -55,12 +60,8 @@ def show_candidate_form():
                 "exam_type": exam_type,
             }
 
-            try:
-                sheet_name = SHEET_MAP[exam_type]
-                bank = load_questions_from_gsheet(QUESTIONS_SHEET_URL, sheet_name)
-            except Exception as e:
-                st.error(f"❌ Error loading questions: {e}")
-                return
+            sheet_name = SHEET_MAP[exam_type]
+            bank = load_questions_from_gsheet(QUESTIONS_SHEET_URL, sheet_name)
 
             selected, err = select_questions_for_exam(exam_type, bank)
             if err:
@@ -72,7 +73,11 @@ def show_candidate_form():
             st.session_state.current_q = 0
             st.session_state.exam_finished = False
             st.session_state.review_mode = False
+
+            # ⏱️ إجمالي وقت الامتحان
             st.session_state.start_time = datetime.now()
+            # ⏱️ وقت السؤال الحالي
+            st.session_state.question_start_time = datetime.now()
 
             st.session_state.page = "exam"
             st.rerun()
@@ -88,35 +93,44 @@ def show_exam():
     q_index = st.session_state.current_q
     q = questions[q_index]
 
-    # ================== TIMER ==================
-    start_time = st.session_state.start_time
-    elapsed = datetime.now() - start_time
-    minutes, seconds = divmod(elapsed.seconds, 60)
+    # ================== QUESTION TIMER ==================
+    now = datetime.now()
+    elapsed = (now - st.session_state.question_start_time).seconds
+    remaining = QUESTION_TIME_LIMIT - elapsed
+
+    if remaining <= 0:
+        # وقت السؤال خلص
+        if q_index < len(questions) - 1:
+            st.session_state.current_q += 1
+            st.session_state.question_start_time = datetime.now()
+            st.rerun()
+        else:
+            finish_exam()
+            return
 
     st.markdown(
         f"""
         <div style='
             font-size:22px;
-            font-weight:700;
-            color:#0b5c4a;
-            background:#e3f8f3;
+            font-weight:800;
+            color:#fff;
+            background:#d9534f;
             padding:10px 20px;
             border-radius:10px;
-            width:180px;
+            width:220px;
             text-align:center;
             margin-bottom:15px;
         '>
-            ⏳ Time: {minutes:02d}:{seconds:02d}
+            ⏱ Time left: {remaining} sec
         </div>
         """,
         unsafe_allow_html=True
     )
-    # ===========================================
+    # ===================================================
 
     st.markdown(f"### Question {q_index + 1} of {len(questions)}")
     st.markdown(f"**{q['question']}**")
 
-    # ---------- SAFE RADIO ----------
     saved_index = answers[q_index]
     if saved_index is None:
         saved_index = 0
@@ -134,30 +148,25 @@ def show_exam():
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        if st.button("⬅ Back", disabled=q_index == 0, key=f"back_btn_{q_index}"):
+        if st.button("⬅ Back", disabled=q_index == 0):
             st.session_state.current_q -= 1
+            st.session_state.question_start_time = datetime.now()
             st.rerun()
 
     with col2:
         if q_index < len(questions) - 1:
-            if st.button("Next ➡", key=f"next_btn_{q_index}"):
+            if st.button("Next ➡"):
                 st.session_state.current_q += 1
+                st.session_state.question_start_time = datetime.now()
                 st.rerun()
 
     with col3:
         if q_index == len(questions) - 1:
-            if st.button("Submit ✅", key="submit_exam_btn"):
+            if st.button("Submit ✅"):
                 if None in answers:
                     st.warning("⚠ Please answer all questions.")
                 else:
                     finish_exam()
-
-    if st.button("⬅ Back to Home", key="exam_to_home"):
-        st.session_state.page = "home"
-        st.session_state.questions = []
-        st.session_state.answers = []
-        st.session_state.current_q = 0
-        st.rerun()
 
 
 # -------------------------------------------------------
@@ -177,6 +186,8 @@ def finish_exam():
 
     total = len(questions)
     score = round((correct / total) * 100, 2)
+
+    # ⏱️ إجمالي وقت الامتحان (هيطلع في الإكسيل)
     time_taken = str(datetime.now() - st.session_state.start_time)
 
     user_info = st.session_state.user_info
@@ -205,61 +216,3 @@ def finish_exam():
 
     st.session_state.exam_finished = True
     st.rerun()
-
-
-# -------------------------------------------------------
-# SHOW EXAM RESULT PAGE
-# -------------------------------------------------------
-def show_exam_result():
-
-    row = st.session_state.result_row
-
-    st.markdown("<h2>🎉 Exam Submitted Successfully</h2>", unsafe_allow_html=True)
-    st.markdown(f"### Thank you, **{row.get('Name')}**")
-    st.write(f"Score: **{row.get('Score')}%**")
-    st.write(f"Correct: {row.get('Correct')} / {row.get('Total')}")
-    st.write(f"Time taken: {row.get('Time Taken')}")
-    st.write(f"Date: {row.get('Exam Date')}")
-
-    if st.button("Review Answers 🔍", key="review_button"):
-        st.session_state.review_mode = True
-        st.rerun()
-
-    if st.session_state.review_mode:
-        show_review()
-
-    if st.button("⬅ Back to Home", key="exam_result_back_home"):
-        st.session_state.page = "home"
-        st.session_state.exam_finished = False
-        st.session_state.review_mode = False
-        st.rerun()
-
-
-# -------------------------------------------------------
-# REVIEW ANSWERS
-# -------------------------------------------------------
-def show_review():
-
-    st.markdown("## 🔍 Review Answers")
-
-    questions = st.session_state.questions
-    answers = st.session_state.answers
-
-    for i, q in enumerate(questions):
-        st.write("---")
-        st.write(f"### Q{i+1}. {q['question']}")
-
-        correct_letter = q["answer"][0]
-        user_letter = chr(97 + answers[i])
-
-        st.write(f"✔ Correct answer: **{correct_letter})**")
-        if user_letter == correct_letter:
-            st.success(f"Your answer: {user_letter}) ✓")
-        else:
-            st.error(f"Your answer: {user_letter}) ✗")
-
-    if st.button("⬅ Back to Home", key="review_back_home"):
-        st.session_state.page = "home"
-        st.session_state.review_mode = False
-        st.session_state.exam_finished = False
-        st.rerun()
