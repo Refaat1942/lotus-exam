@@ -18,7 +18,7 @@ from part4_admin_and_review import save_result_files
 # ======================================================
 # CONFIG
 # ======================================================
-QUESTION_TIME_LIMIT = 20  # seconds per question
+QUESTION_TIME_LIMIT = 20
 APPROVAL_FILE = "approvals.csv"
 
 APP_BASE_URL = "https://lotus-exam.streamlit.app"
@@ -26,13 +26,13 @@ APP_BASE_URL = "https://lotus-exam.streamlit.app"
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 SENDER_EMAIL = "ahmedrefat86@gmail.com"
-SENDER_PASSWORD = "pcbpuynlxfaitxfn"  # App Password
+SENDER_PASSWORD = "pcbpuynlxfaitxfn"   # App Password
 ADMIN_EMAIL = "ahmedrefat86@gmail.com"
 
 
-# ----------------------------------------
-#  GOOGLE SHEETS MAPPING
-# ----------------------------------------
+# ======================================================
+# GOOGLE SHEETS MAP
+# ======================================================
 SHEET_MAP = {
     "Pharmacist (New Hire)": "Pharmacist_New_Hire",
     "Assistant (New Hire)": "Assistant_New_Hire",
@@ -78,18 +78,18 @@ Approve exam:
         server.send_message(msg)
 
 
+def approve_request(request_id):
+    df = pd.read_csv(APPROVAL_FILE)
+    df.loc[df["request_id"] == request_id, "approved"] = 1
+    df.to_csv(APPROVAL_FILE, index=False)
+
+
 def check_approval(request_id):
     df = pd.read_csv(APPROVAL_FILE)
     row = df[df["request_id"] == request_id]
     if row.empty:
         return False
     return int(row.iloc[0]["approved"]) == 1
-
-
-def approve_request(request_id):
-    df = pd.read_csv(APPROVAL_FILE)
-    df.loc[df["request_id"] == request_id, "approved"] = 1
-    df.to_csv(APPROVAL_FILE, index=False)
 
 
 # ======================================================
@@ -115,7 +115,6 @@ def show_candidate_form():
                 return
 
             init_approval_file()
-
             request_id = str(uuid.uuid4())
 
             user_info = {
@@ -141,7 +140,7 @@ def show_candidate_form():
 
 
 # ======================================================
-# WAITING FOR APPROVAL SCREEN
+# WAITING FOR APPROVAL
 # ======================================================
 def show_waiting_for_approval():
 
@@ -179,19 +178,25 @@ def show_waiting_for_approval():
 # ======================================================
 def show_exam():
 
-    # Handle approval link
+    # -------- ADMIN APPROVAL ONLY --------
     params = st.query_params
     approve_id = params.get("approve")
-    if approve_id:
+
+    if approve_id and "approved_by_admin" not in st.session_state:
         init_approval_file()
         approve_request(approve_id)
+        st.session_state.approved_by_admin = True
+
         st.success("✅ Exam approved successfully.")
+        st.info("You can close this page now.")
         st.stop()
 
+    # -------- WAITING MODE --------
     if st.session_state.get("waiting_approval"):
         show_waiting_for_approval()
         return
 
+    # -------- NORMAL EXAM FLOW --------
     questions = st.session_state.questions
     answers = st.session_state.answers
     q_index = st.session_state.current_q
