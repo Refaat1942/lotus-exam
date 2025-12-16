@@ -33,6 +33,11 @@ from part4_admin_and_review import show_admin_panel
 
 def main():
 
+    # 🔐 IMPORTANT: if exam link contains token → go directly to exam
+    params = st.query_params
+    if "token" in params:
+        st.session_state.page = "exam"
+
     if st.session_state.page == "home":
         show_home_page()
 
@@ -41,9 +46,9 @@ def main():
             show_exam_result()
         else:
             if not st.session_state.questions:
-                show_candidate_form()
+                show_candidate_form()   # بيانات + Start Exam
             else:
-                show_exam()
+                show_exam()             # الأسئلة + 20 ثانية
 
     elif st.session_state.page == "admin":
         show_admin_panel()
