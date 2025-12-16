@@ -1,4 +1,5 @@
 from datetime import datetime
+import time
 import streamlit as st
 
 from part1_config_and_helpers import load_questions_from_gsheet, QUESTIONS_SHEET_URL
@@ -41,8 +42,7 @@ def show_candidate_form():
         phone = st.text_input("Phone Number (رقم الموبايل)")
         year = st.text_input("Graduation Year (سنة التخرج)")
         uni = st.text_input("University (الجامعة)")
-
-        exam_type = st.selectbox("Exam Type", list(SHEET_MAP.keys()))  
+        exam_type = st.selectbox("Exam Type", list(SHEET_MAP.keys()))
 
         submitted = st.form_submit_button("Start Exam ✅")
 
@@ -71,14 +71,10 @@ def show_candidate_form():
             st.session_state.questions = selected
             st.session_state.answers = [None] * len(selected)
             st.session_state.current_q = 0
-
             st.session_state.start_time = datetime.now()
             st.session_state.question_start_time = datetime.now()
-
-            # مهم لرسالة انتهاء الوقت
-            st.session_state.time_over_shown = False
-
             st.session_state.page = "exam"
+
             st.rerun()
 
 
@@ -92,10 +88,9 @@ def show_exam():
     q_index = st.session_state.current_q
     q = questions[q_index]
 
-    # ================== QUESTION TIMER ==================
+    # ================== TIMER ==================
     elapsed = (datetime.now() - st.session_state.question_start_time).seconds
     remaining = QUESTION_TIME_LIMIT - elapsed
-    time_over = remaining <= 0
 
     st.markdown(
         f"""
@@ -103,7 +98,7 @@ def show_exam():
             font-size:22px;
             font-weight:800;
             color:#fff;
-            background:#{"d9534f" if time_over else "0b5c4a"};
+            background:#{"d9534f" if remaining <= 0 else "0b5c4a"};
             padding:10px 20px;
             border-radius:10px;
             width:240px;
@@ -115,35 +110,38 @@ def show_exam():
         """,
         unsafe_allow_html=True
     )
-    # ===================================================
 
+    # ⛔ الوقت خلص → اقفل السؤال و اتحرك
+    if remaining <= 0:
+        if answers[q_index] is None:
+            answers[q_index] = -1
+
+        time.sleep(1)
+
+        if q_index < len(questions) - 1:
+            st.session_state.current_q += 1
+            st.session_state.question_start_time = datetime.now()
+            st.rerun()
+        else:
+            finish_exam()
+            return
+
+    # ================== QUESTION ==================
     st.markdown(f"### Question {q_index + 1} of {len(questions)}")
     st.markdown(f"**{q['question']}**")
 
-    # ---------- ANSWER ----------
-    saved_index = answers[q_index]
+    saved_index = answers[q_index] if answers[q_index] not in (None, -1) else 0
 
-    if not time_over:
-        if saved_index is None:
-            saved_index = 0
+    selected_option = st.radio(
+        "Select your answer:",
+        q["options"],
+        index=saved_index,
+        key=f"radio_q_{q_index}",
+    )
 
-        selected_option = st.radio(
-            "Select your answer:",
-            q["options"],
-            index=saved_index,
-            key=f"radio_q_{q_index}",
-        )
-        answers[q_index] = q["options"].index(selected_option)
+    answers[q_index] = q["options"].index(selected_option)
 
-    else:
-        if not st.session_state.get("time_over_shown", False):
-            st.warning("⏱ Time is over for this question.")
-            st.session_state.time_over_shown = True
-
-        if answers[q_index] is None:
-            answers[q_index] = -1  # unanswered = wrong
-
-    # ---------- NAVIGATION ----------
+    # ================== NAV ==================
     col1, col2, col3 = st.columns(3)
 
     with col2:
@@ -151,7 +149,6 @@ def show_exam():
             if st.button("Next ➡"):
                 st.session_state.current_q += 1
                 st.session_state.question_start_time = datetime.now()
-                st.session_state.time_over_shown = False
                 st.rerun()
 
     with col3:
