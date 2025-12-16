@@ -42,7 +42,7 @@ def show_candidate_form():
         phone = st.text_input("Phone Number (رقم الموبايل)")
         year = st.text_input("Graduation Year (سنة التخرج)")
         uni = st.text_input("University (الجامعة)")
-        exam_type = st.selectbox("Exam Type", list(SHEET_MAP.keys()))
+        exam_type = st.selectbox("Exam Type", list(SHEET_MAP.keys()))  
 
         submitted = st.form_submit_button("Start Exam ✅")
 
@@ -73,6 +73,7 @@ def show_candidate_form():
             st.session_state.current_q = 0
             st.session_state.start_time = datetime.now()
             st.session_state.question_start_time = datetime.now()
+            st.session_state.exam_finished = False
             st.session_state.page = "exam"
 
             st.rerun()
@@ -111,7 +112,7 @@ def show_exam():
         unsafe_allow_html=True
     )
 
-    # ⛔ الوقت خلص → اقفل السؤال و اتحرك
+    # ⛔ وقت السؤال خلص
     if remaining <= 0:
         if answers[q_index] is None:
             answers[q_index] = -1
@@ -141,7 +142,7 @@ def show_exam():
 
     answers[q_index] = q["options"].index(selected_option)
 
-    # ================== NAV ==================
+    # ================== NAVIGATION ==================
     col1, col2, col3 = st.columns(3)
 
     with col2:
@@ -186,4 +187,45 @@ def finish_exam():
         answers=answers,
     )
 
-    st.success("✅ Exam Submitted Successfully")
+    st.session_state.result_row_dict = {
+        "score": score,
+        "correct": correct,
+        "total": total,
+        "time_taken": time_taken,
+    }
+
+    st.session_state.exam_finished = True
+    st.session_state.page = "exam"
+    st.rerun()
+
+
+# -------------------------------------------------------
+# RESULT SCREEN
+# -------------------------------------------------------
+def show_exam_result():
+
+    st.markdown("## ✅ Exam Result")
+
+    result = st.session_state.get("result_row_dict", {})
+    if not result:
+        st.warning("No result data available.")
+        return
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric("Score %", result["score"])
+
+    with col2:
+        st.metric("Correct Answers", f"{result['correct']} / {result['total']}")
+
+    with col3:
+        st.metric("Time Taken", result["time_taken"])
+
+    if st.button("🏠 Back to Home"):
+        st.session_state.page = "home"
+        st.session_state.exam_finished = False
+        st.session_state.questions = []
+        st.session_state.answers = []
+        st.session_state.current_q = 0
+        st.rerun()
