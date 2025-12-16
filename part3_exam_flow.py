@@ -26,12 +26,12 @@ APP_BASE_URL = "https://lotus-exam.streamlit.app"
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 SENDER_EMAIL = "ahmedrefat86@gmail.com"
-SENDER_PASSWORD = "pcbpuynlxfaitxfn"   # App Password
+SENDER_PASSWORD = "pcbpuynlxfaitxfn"   # Gmail App Password
 ADMIN_EMAIL = "ahmedrefat86@gmail.com"
 
 
 # ======================================================
-# GOOGLE SHEETS MAP
+# EXAM TYPES
 # ======================================================
 SHEET_MAP = {
     "Pharmacist (New Hire)": "Pharmacist_New_Hire",
@@ -44,33 +44,73 @@ SHEET_MAP = {
 
 
 # ======================================================
-# APPROVAL HELPERS
+# APPROVAL STORAGE
 # ======================================================
 def init_approval_file():
     if not os.path.exists(APPROVAL_FILE):
         pd.DataFrame(
-            columns=["request_id", "name", "phone", "exam_type", "approved"]
+            columns=["request_id", "name", "phone", "exam_type", "status"]
         ).to_csv(APPROVAL_FILE, index=False)
 
 
+def approve_request(request_id):
+    df = pd.read_csv(APPROVAL_FILE)
+    df.loc[df["request_id"] == request_id, "status"] = "approved"
+    df.to_csv(APPROVAL_FILE, index=False)
+
+
+def reject_request(request_id):
+    df = pd.read_csv(APPROVAL_FILE)
+    df.loc[df["request_id"] == request_id, "status"] = "rejected"
+    df.to_csv(APPROVAL_FILE, index=False)
+
+
+def get_request_status(request_id):
+    df = pd.read_csv(APPROVAL_FILE)
+    row = df[df["request_id"] == request_id]
+    if row.empty:
+        return "pending"
+    return row.iloc[0]["status"]
+
+
+# ======================================================
+# EMAIL (HTML APPROVE / REJECT)
+# ======================================================
 def send_approval_email(request_id, user_info):
     approve_link = f"{APP_BASE_URL}?approve={request_id}"
+    reject_link = f"{APP_BASE_URL}?reject={request_id}"
 
     msg = EmailMessage()
     msg["Subject"] = "🟢 Exam Approval Request"
     msg["From"] = SENDER_EMAIL
     msg["To"] = ADMIN_EMAIL
 
-    msg.set_content(f"""
-New exam request:
+    msg.set_content("HTML email required")
 
-Name: {user_info['name']}
-Phone: {user_info['phone']}
-Exam Type: {user_info['exam_type']}
-
-Approve exam:
-{approve_link}
-""")
+    msg.add_alternative(f"""
+    <html>
+    <body style="font-family:Arial">
+        <h3>New Exam Request</h3>
+        <p><b>Name:</b> {user_info['name']}</p>
+        <p><b>Phone:</b> {user_info['phone']}</p>
+        <p><b>Exam Type:</b> {user_info['exam_type']}</p>
+        <br>
+        <a href="{approve_link}"
+           style="padding:12px 20px;background:#28a745;color:#fff;
+           text-decoration:none;border-radius:6px;font-weight:bold;">
+           ✅ Approve
+        </a>
+        &nbsp;&nbsp;
+        <a href="{reject_link}"
+           style="padding:12px 20px;background:#dc3545;color:#fff;
+           text-decoration:none;border-radius:6px;font-weight:bold;">
+           ❌ Reject
+        </a>
+        <br><br>
+        <small>This decision page is admin-only.</small>
+    </body>
+    </html>
+    """, subtype="html")
 
     with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
         server.starttls()
@@ -78,18 +118,29 @@ Approve exam:
         server.send_message(msg)
 
 
-def approve_request(request_id):
-    df = pd.read_csv(APPROVAL_FILE)
-    df.loc[df["request_id"] == request_id, "approved"] = 1
-    df.to_csv(APPROVAL_FILE, index=False)
+# ======================================================
+# ADMIN APPROVAL PAGE (BLOCK EXAM)
+# ======================================================
+def handle_admin_action():
+    params = st.query_params
+    approve_id = params.get("approve")
+    reject_id = params.get("reject")
 
+    if approve_id or reject_id:
+        init_approval_file()
 
-def check_approval(request_id):
-    df = pd.read_csv(APPROVAL_FILE)
-    row = df[df["request_id"] == request_id]
-    if row.empty:
-        return False
-    return int(row.iloc[0]["approved"]) == 1
+        st.markdown("## 🔐 Admin Decision")
+
+        if approve_id:
+            approve_request(approve_id)
+            st.success("✅ Exam approved successfully.")
+
+        if reject_id:
+            reject_request(reject_id)
+            st.error("❌ Exam request rejected.")
+
+        st.info("You can safely close this page now.")
+        st.stop()   # ⛔ STOP ANY EXAM FLOW
 
 
 # ======================================================
@@ -101,7 +152,7 @@ def show_candidate_form():
 
     with st.form("candidate_form"):
         name = st.text_input("Name")
-        phone = st.text_input("Phone Number")
+        phone = st.text_input("Phone")
         year = st.text_input("Graduation Year")
         uni = st.text_input("University")
         exam_type = st.selectbox("Exam Type", list(SHEET_MAP.keys()))
@@ -117,17 +168,17 @@ def show_candidate_form():
             init_approval_file()
             request_id = str(uuid.uuid4())
 
+            df = pd.read_csv(APPROVAL_FILE)
+            df.loc[len(df)] = [request_id, name, phone, exam_type, "pending"]
+            df.to_csv(APPROVAL_FILE, index=False)
+
             user_info = {
-                "name": name.strip(),
-                "phone": phone.strip(),
-                "year": year.strip(),
-                "uni": uni.strip(),
+                "name": name,
+                "phone": phone,
+                "year": year,
+                "uni": uni,
                 "exam_type": exam_type,
             }
-
-            df = pd.read_csv(APPROVAL_FILE)
-            df.loc[len(df)] = [request_id, name, phone, exam_type, 0]
-            df.to_csv(APPROVAL_FILE, index=False)
 
             send_approval_email(request_id, user_info)
 
@@ -135,40 +186,43 @@ def show_candidate_form():
             st.session_state.request_id = request_id
             st.session_state.waiting_approval = True
 
-            st.success("✅ Request sent. Waiting for approval...")
+            st.success("⏳ Request sent. Waiting for admin approval...")
             st.rerun()
 
 
 # ======================================================
-# WAITING FOR APPROVAL
+# WAITING SCREEN
 # ======================================================
 def show_waiting_for_approval():
 
     st.info("⏳ Waiting for admin approval...")
-
     time.sleep(3)
 
-    if check_approval(st.session_state.request_id):
+    status = get_request_status(st.session_state.request_id)
 
+    if status == "approved":
         exam_type = st.session_state.user_info["exam_type"]
         sheet_name = SHEET_MAP[exam_type]
         bank = load_questions_from_gsheet(QUESTIONS_SHEET_URL, sheet_name)
 
-        selected, err = select_questions_for_exam(exam_type, bank)
+        questions, err = select_questions_for_exam(exam_type, bank)
         if err:
             st.error(err)
             return
 
-        st.session_state.questions = selected
-        st.session_state.answers = [None] * len(selected)
+        st.session_state.questions = questions
+        st.session_state.answers = [None] * len(questions)
         st.session_state.current_q = 0
         st.session_state.start_time = datetime.now()
         st.session_state.question_start_time = datetime.now()
-        st.session_state.exam_finished = False
         st.session_state.waiting_approval = False
         st.session_state.page = "exam"
 
         st.rerun()
+
+    if status == "rejected":
+        st.error("❌ Your exam request was rejected.")
+        st.stop()
 
     st.rerun()
 
@@ -178,55 +232,31 @@ def show_waiting_for_approval():
 # ======================================================
 def show_exam():
 
-    # -------- ADMIN APPROVAL ONLY --------
-    params = st.query_params
-    approve_id = params.get("approve")
+    handle_admin_action()  # ⬅️ IMPORTANT
 
-    if approve_id and "approved_by_admin" not in st.session_state:
-        init_approval_file()
-        approve_request(approve_id)
-        st.session_state.approved_by_admin = True
-
-        st.success("✅ Exam approved successfully.")
-        st.info("You can close this page now.")
-        st.stop()
-
-    # -------- WAITING MODE --------
     if st.session_state.get("waiting_approval"):
         show_waiting_for_approval()
         return
 
-    # -------- NORMAL EXAM FLOW --------
-    questions = st.session_state.questions
-    answers = st.session_state.answers
-    q_index = st.session_state.current_q
-    q = questions[q_index]
+    q = st.session_state.questions[st.session_state.current_q]
+    idx = st.session_state.current_q
 
     elapsed = (datetime.now() - st.session_state.question_start_time).seconds
     remaining = QUESTION_TIME_LIMIT - elapsed
 
     st.markdown(f"### ⏱ Time left: {max(0, remaining)} sec")
-
-    if remaining <= 0:
-        if answers[q_index] is None:
-            answers[q_index] = -1
-
-        if q_index < len(questions) - 1:
-            st.session_state.current_q += 1
-            st.session_state.question_start_time = datetime.now()
-            st.rerun()
-        else:
-            finish_exam()
-            return
-
-    st.markdown(f"### Question {q_index + 1}")
     st.markdown(q["question"])
 
-    saved_index = answers[q_index] if answers[q_index] not in (None, -1) else 0
-    choice = st.radio("Select answer", q["options"], index=saved_index)
-    answers[q_index] = q["options"].index(choice)
+    choice = st.radio(
+        "Select answer",
+        q["options"],
+        index=0,
+        key=f"q_{idx}"
+    )
 
-    if st.button("Next ➡"):
+    st.session_state.answers[idx] = q["options"].index(choice)
+
+    if st.button("Next"):
         st.session_state.current_q += 1
         st.session_state.question_start_time = datetime.now()
         st.rerun()
@@ -236,53 +266,4 @@ def show_exam():
 # FINISH EXAM
 # ======================================================
 def finish_exam():
-
-    questions = st.session_state.questions
-    answers = st.session_state.answers
-
-    correct = 0
-    for i, q in enumerate(questions):
-        if answers[i] != -1 and chr(97 + answers[i]) == q["answer"][0]:
-            correct += 1
-
-    total = len(questions)
-    score = round((correct / total) * 100, 2)
-    time_taken = str(datetime.now() - st.session_state.start_time)
-
-    save_result_files(
-        user_info=st.session_state.user_info,
-        score=score,
-        correct=correct,
-        total=total,
-        time_taken=time_taken,
-        questions=questions,
-        answers=answers,
-    )
-
-    st.session_state.result_row_dict = {
-        "score": score,
-        "correct": correct,
-        "total": total,
-        "time_taken": time_taken,
-    }
-
-    st.session_state.exam_finished = True
-    st.rerun()
-
-
-# ======================================================
-# RESULT SCREEN
-# ======================================================
-def show_exam_result():
-
-    r = st.session_state.result_row_dict
-
-    st.success("✅ Exam Completed")
-    st.metric("Score %", r["score"])
-    st.metric("Correct", f"{r['correct']} / {r['total']}")
-    st.metric("Time Taken", r["time_taken"])
-
-    if st.button("🏠 Back to Home"):
-        for k in list(st.session_state.keys()):
-            del st.session_state[k]
-        st.rerun()
+    st.success("Exam Finished")
