@@ -69,7 +69,6 @@ def mark_token_used(token):
 # ENTRY POINT – TOKEN CHECK
 # ======================================================
 def handle_token_access():
-
     params = st.query_params
     token = params.get("token")
 
@@ -85,9 +84,7 @@ def handle_token_access():
         st.error(result)
         st.stop()
 
-    # Token valid → lock it immediately
     mark_token_used(token)
-
     st.session_state.token_verified = True
     st.session_state.exam_type = result
 
@@ -156,6 +153,12 @@ def show_exam():
     questions = st.session_state.questions
     answers = st.session_state.answers
     q_index = st.session_state.current_q
+
+    # ✅ FIX: prevent IndexError at end of exam
+    if q_index >= len(questions):
+        finish_exam()
+        return
+
     q = questions[q_index]
 
     elapsed = (datetime.now() - st.session_state.question_start_time).seconds
@@ -163,18 +166,14 @@ def show_exam():
 
     st.markdown(f"### ⏱ Time left: {max(0, remaining)} sec")
 
-    # Time over → auto move
+    # ⏰ Time over → auto move
     if remaining <= 0:
         if answers[q_index] is None:
             answers[q_index] = -1
 
-        if q_index < len(questions) - 1:
-            st.session_state.current_q += 1
-            st.session_state.question_start_time = datetime.now()
-            st.rerun()
-        else:
-            finish_exam()
-            return
+        st.session_state.current_q += 1
+        st.session_state.question_start_time = datetime.now()
+        st.rerun()
 
     st.markdown(f"### Question {q_index + 1}")
     st.markdown(q["question"])
@@ -186,10 +185,7 @@ def show_exam():
     if st.button("Next"):
         st.session_state.current_q += 1
         st.session_state.question_start_time = datetime.now()
-        if st.session_state.current_q >= len(questions):
-            finish_exam()
-        else:
-            st.rerun()
+        st.rerun()
 
 
 # ======================================================
