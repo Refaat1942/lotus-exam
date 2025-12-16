@@ -1,6 +1,5 @@
 from datetime import datetime
 import streamlit as st
-import streamlit.components.v1 as components
 
 from part1_config_and_helpers import load_questions_from_gsheet, QUESTIONS_SHEET_URL
 from part2_question_selection_and_validation import (
@@ -85,35 +84,15 @@ def show_candidate_form():
 # -------------------------------------------------------
 def show_exam():
 
-    # 🔁 JavaScript auto refresh every second (الحل الحقيقي)
-    components.html(
-        """
-        <script>
-        setTimeout(function() {
-            window.location.reload();
-        }, 1000);
-        </script>
-        """,
-        height=0,
-    )
-
     questions = st.session_state.questions
     answers = st.session_state.answers
     q_index = st.session_state.current_q
     q = questions[q_index]
 
-    now = datetime.now()
-    elapsed = (now - st.session_state.question_start_time).seconds
+    # ================== QUESTION TIMER ==================
+    elapsed = (datetime.now() - st.session_state.question_start_time).seconds
     remaining = QUESTION_TIME_LIMIT - elapsed
-
-    if remaining <= 0:
-        if q_index < len(questions) - 1:
-            st.session_state.current_q += 1
-            st.session_state.question_start_time = datetime.now()
-            st.rerun()
-        else:
-            finish_exam()
-            return
+    time_over = remaining <= 0
 
     st.markdown(
         f"""
@@ -121,35 +100,43 @@ def show_exam():
             font-size:22px;
             font-weight:800;
             color:#fff;
-            background:#d9534f;
+            background:#{"d9534f" if time_over else "0b5c4a"};
             padding:10px 20px;
             border-radius:10px;
-            width:220px;
+            width:240px;
             text-align:center;
             margin-bottom:15px;
         '>
-            ⏱ Time left: {remaining} sec
+            ⏱ Time left: {max(0, remaining)} sec
         </div>
         """,
         unsafe_allow_html=True
     )
+    # ===================================================
 
     st.markdown(f"### Question {q_index + 1} of {len(questions)}")
     st.markdown(f"**{q['question']}**")
 
+    # ---------- ANSWER ----------
     saved_index = answers[q_index]
-    if saved_index is None:
-        saved_index = 0
 
-    selected_option = st.radio(
-        "Select your answer:",
-        q["options"],
-        index=saved_index,
-        key=f"radio_q_{q_index}",
-    )
+    if not time_over:
+        if saved_index is None:
+            saved_index = 0
 
-    answers[q_index] = q["options"].index(selected_option)
+        selected_option = st.radio(
+            "Select your answer:",
+            q["options"],
+            index=saved_index,
+            key=f"radio_q_{q_index}",
+        )
+        answers[q_index] = q["options"].index(selected_option)
+    else:
+        st.warning("⏱ Time is over for this question.")
+        if answers[q_index] is None:
+            answers[q_index] = -1  # unanswered = wrong
 
+    # ---------- NAVIGATION ----------
     col1, col2, col3 = st.columns(3)
 
     with col2:
@@ -175,6 +162,8 @@ def finish_exam():
 
     correct = 0
     for i, q in enumerate(questions):
+        if answers[i] == -1:
+            continue
         if chr(97 + answers[i]) == q["answer"][0]:
             correct += 1
 
@@ -192,4 +181,4 @@ def finish_exam():
         answers=answers,
     )
 
-    st.success("✅ Exam Submitted")
+    st.success("✅ Exam Submitted Successfully")
