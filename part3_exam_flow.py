@@ -42,7 +42,7 @@ def show_candidate_form():
         phone = st.text_input("Phone Number (رقم الموبايل)")
         year = st.text_input("Graduation Year (سنة التخرج)")
         uni = st.text_input("University (الجامعة)")
-        exam_type = st.selectbox("Exam Type", list(SHEET_MAP.keys()))  
+        exam_type = st.selectbox("Exam Type", list(SHEET_MAP.keys()))
 
         submitted = st.form_submit_button("Start Exam ✅")
 
@@ -80,7 +80,7 @@ def show_candidate_form():
 
 
 # -------------------------------------------------------
-#  EXAM SCREEN
+# EXAM SCREEN
 # -------------------------------------------------------
 def show_exam():
 
@@ -112,7 +112,7 @@ def show_exam():
         unsafe_allow_html=True
     )
 
-    # ⛔ وقت السؤال خلص
+    # ⛔ Time over → auto move
     if remaining <= 0:
         if answers[q_index] is None:
             answers[q_index] = -1
