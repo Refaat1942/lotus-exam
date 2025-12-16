@@ -42,7 +42,7 @@ def show_candidate_form():
         year = st.text_input("Graduation Year (سنة التخرج)")
         uni = st.text_input("University (الجامعة)")
 
-        exam_type = st.selectbox("Exam Type", list(SHEET_MAP.keys()))
+        exam_type = st.selectbox("Exam Type", list(SHEET_MAP.keys()))  
 
         submitted = st.form_submit_button("Start Exam ✅")
 
@@ -74,6 +74,9 @@ def show_candidate_form():
 
             st.session_state.start_time = datetime.now()
             st.session_state.question_start_time = datetime.now()
+
+            # مهم لرسالة انتهاء الوقت
+            st.session_state.time_over_shown = False
 
             st.session_state.page = "exam"
             st.rerun()
@@ -131,8 +134,12 @@ def show_exam():
             key=f"radio_q_{q_index}",
         )
         answers[q_index] = q["options"].index(selected_option)
+
     else:
-        st.warning("⏱ Time is over for this question.")
+        if not st.session_state.get("time_over_shown", False):
+            st.warning("⏱ Time is over for this question.")
+            st.session_state.time_over_shown = True
+
         if answers[q_index] is None:
             answers[q_index] = -1  # unanswered = wrong
 
@@ -144,6 +151,7 @@ def show_exam():
             if st.button("Next ➡"):
                 st.session_state.current_q += 1
                 st.session_state.question_start_time = datetime.now()
+                st.session_state.time_over_shown = False
                 st.rerun()
 
     with col3:
