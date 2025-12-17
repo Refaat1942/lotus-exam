@@ -8,6 +8,7 @@ import streamlit as st
 # SAVE RESULT FILES
 # ======================================================
 
+
 def save_result_files(
     user_info,
     score,
@@ -30,7 +31,9 @@ def save_result_files(
     # =========================
     os.makedirs("results", exist_ok=True)
 
-    filename = f"{user_info['name']}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.xlsx"
+    filename = (
+        f"{user_info['name']}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.xlsx"
+    )
     filepath = os.path.join("results", filename)
 
     # =========================
@@ -39,20 +42,24 @@ def save_result_files(
     timed_out_count = answers.count(-1)
     incorrect_count = total - correct - timed_out_count
 
-    summary_df = pd.DataFrame([{
-        "Name": user_info["name"],
-        "Phone": user_info["phone"],
-        "Graduation Year": user_info["year"],
-        "University": user_info["uni"],
-        "Exam Type": user_info["exam_type"],
-        "Score %": score,
-        "Correct": correct,
-        "Incorrect": incorrect_count,
-        "Timed Out (Not Counted)": timed_out_count,
-        "Total Questions": total,
-        "Time Taken": time_taken,
-        "Exam Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }])
+    summary_df = pd.DataFrame(
+        [
+            {
+                "Name": user_info["name"],
+                "Phone": user_info["phone"],
+                "Graduation Year": user_info["year"],
+                "University": user_info["uni"],
+                "Exam Type": user_info["exam_type"],
+                "Score %": score,
+                "Correct": correct,
+                "Incorrect": incorrect_count,
+                "Timed Out (Not Counted)": timed_out_count,
+                "Total Questions": total,
+                "Time Taken": time_taken,
+                "Exam Date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            }
+        ]
+    )
 
     # =========================
     # DETAILS SHEET
@@ -75,22 +82,24 @@ def save_result_files(
                 result = "Incorrect"
                 mark = "✗"
 
-        details_rows.append({
-            "Question": q["question"],
-            "Candidate Answer": candidate_answer,
-            "Correct Answer": q["answer"],
-            "Result": result,
-            "Mark": mark,
-            "Category": q.get("category", ""),
-            "Difficulty": q.get("difficulty", "")
-        })
+        details_rows.append(
+            {
+                "Question": q["question"],
+                "Candidate Answer": candidate_answer,
+                "Correct Answer": q["answer"],
+                "Result": result,
+                "Mark": mark,
+                "Category": q.get("category", ""),
+                "Difficulty": q.get("difficulty", ""),
+            }
+        )
 
     details_df = pd.DataFrame(details_rows)
 
     # =========================
     # WRITE EXCEL FILE
     # =========================
-    with pd.ExcelWriter(filepath, engine="xlsxwriter") as writer:
+    with pd.ExcelWriter(filepath, engine="openpyxl") as writer:
         summary_df.to_excel(writer, sheet_name="Summary", index=False)
         details_df.to_excel(writer, sheet_name="Details", index=False)
 
@@ -100,6 +109,7 @@ def save_result_files(
 # ======================================================
 # ADMIN PANEL (مطلوبة علشان app.py)
 # ======================================================
+
 
 def show_admin_panel():
     """
