@@ -1,4 +1,5 @@
 from datetime import datetime
+import time
 import os
 import pandas as pd
 import streamlit as st
@@ -148,10 +149,6 @@ def show_exam():
 
     handle_token_access()
 
-    # 🔥 أهم سطر في القصة كلها
-    # Auto refresh every 1 second to count time even without interaction
-    st.experimental_autorefresh(interval=1000, key="exam_timer")
-
     questions = st.session_state.questions
     answers = st.session_state.answers
     q_index = st.session_state.current_q
@@ -187,6 +184,10 @@ def show_exam():
         st.session_state.current_q += 1
         st.session_state.question_start_time = datetime.now()
         st.rerun()
+
+    # 🔁 Auto rerun every second (Streamlit-safe)
+    time.sleep(1)
+    st.rerun()
 
 
 # ======================================================
