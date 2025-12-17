@@ -1,5 +1,4 @@
 from datetime import datetime
-import time
 import os
 import pandas as pd
 import streamlit as st
@@ -114,7 +113,7 @@ def show_candidate_form():
                 st.error(msg)
                 return
 
-            user_info = {
+            st.session_state.user_info = {
                 "name": name,
                 "phone": phone,
                 "year": year,
@@ -132,7 +131,6 @@ def show_candidate_form():
                 st.error(err)
                 return
 
-            st.session_state.user_info = user_info
             st.session_state.questions = questions
             st.session_state.answers = [None] * len(questions)
             st.session_state.current_q = 0
@@ -154,7 +152,6 @@ def show_exam():
     answers = st.session_state.answers
     q_index = st.session_state.current_q
 
-    # ✅ FIX: prevent IndexError at end of exam
     if q_index >= len(questions):
         finish_exam()
         return
@@ -166,10 +163,10 @@ def show_exam():
 
     st.markdown(f"### ⏱ Time left: {max(0, remaining)} sec")
 
-    # ⏰ Time over → auto move
+    # ⏰ Time over → auto move (Timed Out)
     if remaining <= 0:
         if answers[q_index] is None:
-            answers[q_index] = -1
+            answers[q_index] = -1  # Timed Out
 
         st.session_state.current_q += 1
         st.session_state.question_start_time = datetime.now()
@@ -197,8 +194,12 @@ def finish_exam():
     answers = st.session_state.answers
 
     correct = 0
+    timed_out_count = 0
+
     for i, q in enumerate(questions):
-        if answers[i] != -1 and chr(97 + answers[i]) == q["answer"][0]:
+        if answers[i] == -1:
+            timed_out_count += 1
+        elif chr(97 + answers[i]) == q["answer"][0]:
             correct += 1
 
     total = len(questions)
@@ -219,6 +220,7 @@ def finish_exam():
         "score": score,
         "correct": correct,
         "total": total,
+        "timed_out": timed_out_count,
         "time_taken": time_taken,
     }
 
@@ -236,6 +238,7 @@ def show_exam_result():
     st.success("✅ Exam Completed")
     st.metric("Score %", r["score"])
     st.metric("Correct", f"{r['correct']} / {r['total']}")
+    st.metric("Timed Out Questions", r["timed_out"])
     st.metric("Time Taken", r["time_taken"])
 
     if st.button("🏠 Back to Home"):
