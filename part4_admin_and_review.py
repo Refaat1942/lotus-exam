@@ -1,7 +1,12 @@
 import os
 import pandas as pd
 from datetime import datetime
+import streamlit as st
 
+
+# ======================================================
+# SAVE RESULT FILES
+# ======================================================
 
 def save_result_files(
     user_info,
@@ -90,3 +95,16 @@ def save_result_files(
         details_df.to_excel(writer, sheet_name="Details", index=False)
 
     return filepath
+
+
+# ======================================================
+# ADMIN PANEL (مطلوبة علشان app.py)
+# ======================================================
+
+def show_admin_panel():
+    """
+    Minimal admin panel to satisfy import in app.py
+    (No logic changed, safe placeholder)
+    """
+    st.markdown("## Admin Panel")
+    st.info("Admin panel loaded successfully.")
