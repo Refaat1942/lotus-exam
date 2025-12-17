@@ -148,6 +148,10 @@ def show_exam():
 
     handle_token_access()
 
+    # 🔥 أهم سطر في القصة كلها
+    # Auto refresh every 1 second to count time even without interaction
+    st.experimental_autorefresh(interval=1000, key="exam_timer")
+
     questions = st.session_state.questions
     answers = st.session_state.answers
     q_index = st.session_state.current_q
