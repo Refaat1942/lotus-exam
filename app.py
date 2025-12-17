@@ -1,10 +1,33 @@
 import streamlit as st
 
-# ============= PAGE FULL WIDTH =============
+# ======================================================
+# PAGE CONFIG
+# ======================================================
 st.set_page_config(layout="wide")
 
-# ============= SESSION INITIALIZATION =============
+# ======================================================
+# 🔒 HIDE STREAMLIT TOOLBAR (STOP / RERUN / MENU)
+# ======================================================
+st.markdown("""
+<style>
+/* Hide top header */
+header {visibility: hidden;}
 
+/* Hide toolbar buttons (Stop / Rerun) */
+[data-testid="stToolbar"] {display: none;}
+[data-testid="stDecoration"] {display: none;}
+[data-testid="stStatusWidget"] {display: none;}
+
+/* Prevent right-click inspect (optional, soft protection) */
+body {
+    user-select: none;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ======================================================
+# SESSION INITIALIZATION
+# ======================================================
 def init_session():
     defaults = {
         "page": "home",
@@ -23,17 +46,19 @@ def init_session():
 
 init_session()
 
-# ============= IMPORT PAGES AFTER INITIALIZATION =============
-
+# ======================================================
+# IMPORT PAGES
+# ======================================================
 from home_page import show_home_page
 from part3_exam_flow import show_candidate_form, show_exam, show_exam_result
 from part4_admin_and_review import show_admin_panel
 
-# ============= PAGE ROUTING SYSTEM =============
-
+# ======================================================
+# PAGE ROUTING SYSTEM
+# ======================================================
 def main():
 
-    # 🔐 IMPORTANT: if exam link contains token → go directly to exam
+    # 🔐 If exam link contains token → go directly to exam
     params = st.query_params
     if "token" in params:
         st.session_state.page = "exam"
@@ -46,13 +71,15 @@ def main():
             show_exam_result()
         else:
             if not st.session_state.questions:
-                show_candidate_form()   # بيانات + Start Exam
+                show_candidate_form()   # Candidate info + Start Exam
             else:
-                show_exam()             # الأسئلة + 20 ثانية
+                show_exam()             # Questions + 20 sec timer
 
     elif st.session_state.page == "admin":
         show_admin_panel()
 
-# Run app
+# ======================================================
+# RUN APP
+# ======================================================
 if __name__ == "__main__":
     main()
