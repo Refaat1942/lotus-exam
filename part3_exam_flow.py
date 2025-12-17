@@ -167,7 +167,7 @@ def show_exam():
     # ⏰ Time over → auto move (Timed Out)
     if remaining <= 0:
         if answers[q_index] is None:
-            answers[q_index] = -1  # Timed Out
+            answers[q_index] = -1
 
         st.session_state.current_q += 1
         st.session_state.question_start_time = datetime.now()
@@ -176,16 +176,22 @@ def show_exam():
     st.markdown(f"### Question {q_index + 1}")
     st.markdown(q["question"])
 
-    saved_index = answers[q_index] if answers[q_index] not in (None, -1) else 0
-    choice = st.radio("Select answer", q["options"], index=saved_index)
-    answers[q_index] = q["options"].index(choice)
+    # ✅ FIX: do NOT overwrite timed out answers
+    if answers[q_index] in (None, -1):
+        choice = st.radio("Select answer", q["options"], index=None)
+    else:
+        choice = st.radio("Select answer", q["options"], index=answers[q_index])
+
+    if choice is not None:
+        answers[q_index] = q["options"].index(choice)
 
     if st.button("Next"):
+        if answers[q_index] is None:
+            answers[q_index] = -1
         st.session_state.current_q += 1
         st.session_state.question_start_time = datetime.now()
         st.rerun()
 
-    # 🔁 Auto rerun every second (Streamlit-safe)
     time.sleep(1)
     st.rerun()
 
@@ -199,12 +205,12 @@ def finish_exam():
     answers = st.session_state.answers
 
     correct = 0
-    timed_out_count = 0
+    timed_out_count = answers.count(-1)
 
     for i, q in enumerate(questions):
         if answers[i] == -1:
-            timed_out_count += 1
-        elif chr(97 + answers[i]) == q["answer"][0]:
+            continue
+        if chr(97 + answers[i]) == q["answer"][0]:
             correct += 1
 
     total = len(questions)
