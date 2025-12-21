@@ -15,7 +15,7 @@ from part4_admin_and_review import save_result_files
 # ======================================================
 # CONFIG
 # ======================================================
-QUESTION_TIME_LIMIT = 20  # seconds per question
+QUESTION_TIME_LIMIT = 45  # seconds per question
 TOKEN_FILE = "tokens.csv"
 
 
