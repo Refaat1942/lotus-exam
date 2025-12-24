@@ -45,11 +45,22 @@ from part4_admin_and_review import show_admin_panel
 # ======================================================
 def main():
 
-    # لو فيه token في اللينك → امتحان مباشر
     params = st.query_params
-    if "token" in params:
+
+    # 🔐 Admin access (hidden link)
+    if "admin" in params:
+        st.session_state.page = "admin"
+
+    # 🧪 Exam access via token
+    elif "token" in params:
         st.session_state.page = "exam"
 
+    # 🏠 Default Home
+    else:
+        if "page" not in st.session_state:
+            st.session_state.page = "home"
+
+    # ================= PAGE SWITCH =================
     if st.session_state.page == "home":
         show_home_page()
 
